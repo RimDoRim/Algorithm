@@ -9,12 +9,21 @@ def sync_to_notion():
     repo_name = os.environ.get("GITHUB_REPOSITORY")
 
     if not all([token, db_id, repo_name]):
-        print("필수 환경 변수가 없습니다.")
+        print("에러: 환경 변수(토큰, DB ID, Repo)가 없습니다.")
         return
 
-    # 방금 푸시된 파이썬/자바 파일 찾기 (기존은 .py만 했지만 .java도 포함되도록 수정)
-    result = subprocess.run(['git', 'diff', '--name-only', 'HEAD^', 'HEAD'], capture_output=True, text=True)
-    changed_files = [f for f in result.stdout.strip().split('\n') if f.endswith('.py') or f.endswith('.java')]
+    print("변경된 파일을 찾습니다...")
+    # git diff 대신 가장 확실한 git show 명령어로 방금 커밋된 파일 목록만 가져옵니다!
+    result = subprocess.run(['git', 'show', '--name-only', '--format=', 'HEAD'], capture_output=True, text=True)
+    
+    # 디버깅을 위해 콘솔에 출력
+    print(f"Git 명령 결과:\n{result.stdout}")
+    
+    changed_files = [f.strip() for f in result.stdout.strip().split('\n') if f.endswith('.py') or f.endswith('.java')]
+
+    if not changed_files:
+        print("이번 커밋에 추가되거나 수정된 .py / .java 파일이 없습니다.")
+        return
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -25,14 +34,15 @@ def sync_to_notion():
     for file_path in changed_files:
         problem_name = os.path.basename(file_path).split('.')[0]
         github_url = f"https://github.com/{repo_name}/blob/main/{file_path}"
-        
-        # 확장자에 따라 언어 설정
         code_lang = "python" if file_path.endswith('.py') else "java"
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            code_content = f.read()
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code_content = f.read()
+        except FileNotFoundError:
+            print(f"에러: {file_path} 파일을 찾을 수 없습니다. (삭제된 파일일 수 있음)")
+            continue
 
-        # 분석한 템플릿 구조대로 payload 작성
         payload = {
             "parent": {"database_id": db_id},
             "properties": {
@@ -41,7 +51,6 @@ def sync_to_notion():
                 "날짜": {"date": {"start": datetime.now().strftime("%Y-%m-%d")}}
             },
             "children": [
-                # 1. 문제 이름 콜아웃
                 {
                     "object": "block",
                     "type": "callout",
@@ -50,7 +59,6 @@ def sync_to_notion():
                         "icon": {"type": "emoji", "emoji": "📝"}
                     }
                 },
-                # 2. 문제 링크 콜아웃 (임시로 Github 링크 연결, 실제 백준 링크가 있다면 교체 가능)
                 {
                     "object": "block",
                     "type": "callout",
@@ -59,29 +67,25 @@ def sync_to_notion():
                         "icon": {"type": "emoji", "emoji": "🔗"}
                     }
                 },
-                # 3. 성능 정보 콜아웃 (백준허브에서는 성능 정보를 커밋 메시지나 주석에 담으므로 임시 텍스트 추가)
                 {
                     "object": "block",
                     "type": "callout",
                     "callout": {
-                        "rich_text": [{"text": {"content": "⏱️ 성능: (백준허브 자동 기록)"}}],
+                        "rich_text": [{"text": {"content": "⏱️ 성능: (백준허브 기록 확인)"}}],
                         "icon": {"type": "emoji", "emoji": "⏱️"}
                     }
                 },
-                # 4. 구분선
                 {
                     "object": "block",
                     "type": "divider",
                     "divider": {}
                 },
-                # 5. 토글 안에 코드 넣기
                 {
                     "object": "block",
                     "type": "toggle",
                     "toggle": {
                         "rich_text": [{"text": {"content": "답안"}}],
                         "children": [
-                            # 토글 내부의 실제 코드 블록
                             {
                                 "object": "block",
                                 "type": "code",
@@ -96,11 +100,13 @@ def sync_to_notion():
             ]
         }
         
+        print(f"노션 API 전송 중: {problem_name}...")
         response = requests.post("https://api.notion.com/v1/pages", headers=headers, json=payload, timeout=10)
+        
         if response.status_code == 200:
-            print(f"성공: {problem_name}")
+            print(f"✅ 성공: {problem_name} 노션 업로드 완료!")
         else:
-            print(f"실패: {response.text}")
+            print(f"❌ 실패 ({problem_name}): {response.status_code} - {response.text}")
 
 if __name__ == "__main__":
     sync_to_notion()
