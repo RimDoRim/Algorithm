@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -24,6 +24,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install requests
+
+      - name: Configure Git for Korean filenames
+        run: git config --global core.quotepath false
 
       - name: Run Notion Sync Script
         env:
