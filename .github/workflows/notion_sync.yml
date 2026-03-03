@@ -1,12 +1,12 @@
 name: Sync to Notion
 
-# 백준허브가 main 브랜치에 코드를 올릴 때마다 자동 실행
 on:
   push:
     branches:
       - main
     paths:
       - '**/*.py'
+      - '**/*.java'
 
 jobs:
   upload-to-notion:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 2 # 이전 커밋과 비교하기 위해 2로 설정
+          fetch-depth: 0 
 
       - name: Set up Python
         uses: actions/setup-python@v4
