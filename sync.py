@@ -2,7 +2,41 @@ import os
 import subprocess
 import requests
 import urllib.parse
+import re  
 from datetime import datetime
+
+# HTML 태그를 깔끔하게 제거하는 함수 추가
+def clean_html(raw_text):
+    # 1. <li> (리스트 항목) 태그를 마크다운 글머리 기호(•)로 변경
+    text = re.sub(r'<li>', '• ', raw_text)
+    text = re.sub(r'</li>', '\n', text)
+    
+    # 2. <tr> (표의 행) 태그가 끝날 때 줄바꿈
+    text = re.sub(r'</tr>', '\n', text)
+    
+    # 3. <td>, <th> (표의 열) 태그를 탭(간격) 기호와 세로선(|)으로 분리
+    text = re.sub(r'<td[^>]*>', ' | ', text)
+    text = re.sub(r'<th[^>]*>', ' | ', text)
+    text = re.sub(r'</td>', ' ', text)
+    text = re.sub(r'</th>', ' ', text)
+    
+    # 4. 헤딩 태그 (<h5>, <h3> 등)를 깔끔한 노션 텍스트 제목으로 변경
+    text = re.sub(r'<h[1-6][^>]*>', '\n\n📌 ', text)
+    text = re.sub(r'</h[1-6]>', '\n', text)
+    
+    # 5. <br> 태그를 줄바꿈으로 변경
+    text = re.sub(r'<br\s*/?>', '\n', text)
+    
+    # 6. 나머지 모든 HTML 껍데기 태그 삭제 (p, div, ul, code 등)
+    text = re.sub(r'<.*?>', '', text)
+    
+    # 7. HTML 특수문자 원상복구
+    text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&').replace('&quot;', '"')
+    
+    # 8. 쓸데없이 연속된 빈 줄 제거
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
 
 def sync_to_notion():
     token = os.environ.get("NOTION_TOKEN")
@@ -33,20 +67,23 @@ def sync_to_notion():
         github_url = f"https://github.com/{repo_name}/tree/main/{encoded_folder_path}"
         code_lang = "python" if file_path.endswith('.py') else "java"
         
-        # 1. 소스 코드 파일 읽기
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code_content = f.read()
         except FileNotFoundError:
             continue
 
-        # 2. README.md (문제 설명) 파일 읽기
         readme_path = os.path.join(folder_path, "README.md")
         readme_content = ""
         try:
             with open(readme_path, 'r', encoding='utf-8') as f:
-                # 노션 텍스트 한도(2000자)를 넘지 않도록 자르기
-                readme_content = f.read()[:2000] 
+                raw_readme = f.read()
+                # ★ 여기서 HTML 태그를 모두 제거합니다!
+                readme_content = clean_html(raw_readme)
+                
+                # 노션 텍스트 블록 한도(2000자)에 맞춰 자르기
+                if len(readme_content) > 2000:
+                    readme_content = readme_content[:1997] + "..."
         except FileNotFoundError:
             readme_content = "문제 설명(README.md) 파일을 찾을 수 없습니다."
 
@@ -79,7 +116,6 @@ def sync_to_notion():
                     "type": "divider",
                     "divider": {}
                 },
-                # ▼ 추가된 부분: 문제 설명(README)을 접은 상태(토글)로 깔끔하게 넣기 ▼
                 {
                     "object": "block",
                     "type": "toggle",
