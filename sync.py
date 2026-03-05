@@ -1,6 +1,7 @@
 import os
 import subprocess
 import requests
+import urllib.parse
 from datetime import datetime
 
 def sync_to_notion():
@@ -12,17 +13,11 @@ def sync_to_notion():
         print("에러: 환경 변수(토큰, DB ID, Repo)가 없습니다.")
         return
 
-    print("변경된 파일을 찾습니다...")
-    # git diff 대신 가장 확실한 git show 명령어로 방금 커밋된 파일 목록만 가져옵니다!
     result = subprocess.run(['git', 'show', '--name-only', '--format=', 'HEAD'], capture_output=True, text=True)
-    
-    # 디버깅을 위해 콘솔에 출력
-    print(f"Git 명령 결과:\n{result.stdout}")
-    
     changed_files = [f.strip() for f in result.stdout.strip().split('\n') if f.endswith('.py') or f.endswith('.java')]
 
     if not changed_files:
-        print("이번 커밋에 추가되거나 수정된 .py / .java 파일이 없습니다.")
+        print("이번 커밋에 추가되거나 수정된 소스 코드 파일이 없습니다.")
         return
 
     headers = {
@@ -33,15 +28,27 @@ def sync_to_notion():
 
     for file_path in changed_files:
         problem_name = os.path.basename(file_path).split('.')[0]
-        github_url = f"https://github.com/{repo_name}/blob/main/{file_path}"
+        folder_path = os.path.dirname(file_path)
+        encoded_folder_path = urllib.parse.quote(folder_path)
+        github_url = f"https://github.com/{repo_name}/tree/main/{encoded_folder_path}"
         code_lang = "python" if file_path.endswith('.py') else "java"
         
+        # 1. 소스 코드 파일 읽기
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code_content = f.read()
         except FileNotFoundError:
-            print(f"에러: {file_path} 파일을 찾을 수 없습니다. (삭제된 파일일 수 있음)")
             continue
+
+        # 2. README.md (문제 설명) 파일 읽기
+        readme_path = os.path.join(folder_path, "README.md")
+        readme_content = ""
+        try:
+            with open(readme_path, 'r', encoding='utf-8') as f:
+                # 노션 텍스트 한도(2000자)를 넘지 않도록 자르기
+                readme_content = f.read()[:2000] 
+        except FileNotFoundError:
+            readme_content = "문제 설명(README.md) 파일을 찾을 수 없습니다."
 
         payload = {
             "parent": {"database_id": db_id},
@@ -63,16 +70,8 @@ def sync_to_notion():
                     "object": "block",
                     "type": "callout",
                     "callout": {
-                        "rich_text": [{"text": {"content": "문제 링크 (GitHub 코드 보기)", "link": {"url": github_url}}}],
+                        "rich_text": [{"text": {"content": "문제 링크 (GitHub 폴더 보기)", "link": {"url": github_url}}}],
                         "icon": {"type": "emoji", "emoji": "🔗"}
-                    }
-                },
-                {
-                    "object": "block",
-                    "type": "callout",
-                    "callout": {
-                        "rich_text": [{"text": {"content": "⏱️ 성능: (백준허브 기록 확인)"}}],
-                        "icon": {"type": "emoji", "emoji": "⏱️"}
                     }
                 },
                 {
@@ -80,11 +79,28 @@ def sync_to_notion():
                     "type": "divider",
                     "divider": {}
                 },
+                # ▼ 추가된 부분: 문제 설명(README)을 접은 상태(토글)로 깔끔하게 넣기 ▼
                 {
                     "object": "block",
                     "type": "toggle",
                     "toggle": {
-                        "rich_text": [{"text": {"content": "답안"}}],
+                        "rich_text": [{"text": {"content": "📄 문제 설명 보기"}}],
+                        "children": [
+                            {
+                                "object": "block",
+                                "type": "paragraph",
+                                "paragraph": {
+                                    "rich_text": [{"text": {"content": readme_content}}]
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "object": "block",
+                    "type": "toggle",
+                    "toggle": {
+                        "rich_text": [{"text": {"content": "💻 내 답안 코드 보기"}}],
                         "children": [
                             {
                                 "object": "block",
