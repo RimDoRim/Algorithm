@@ -1,5 +1,7 @@
 import java.util.*;
-
+        // 배열의 인덱스 중 임의의 2개를 뽑음
+        // 두개를 더해서 int[] 에 넣음, 중복 허용하면안됨
+        // 그것을 정렬
 class Solution {
     public int[] solution(int[] numbers) {
         Set<Integer> set = new HashSet<>();
