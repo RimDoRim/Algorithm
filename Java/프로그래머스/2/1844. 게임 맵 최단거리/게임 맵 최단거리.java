@@ -2,48 +2,42 @@ import java.util.*;
 
 class Solution {
     
-    //상하좌우
-    int[] dr = {0,0,-1,1};
+    int[] dr = {0,0,1,-1};
     int[] dc = {1,-1,0,0};
     
     public int solution(int[][] maps) {
-        int ans = 0;
         
-        //st = maps[0][0]
-        
-        int n = maps.length; 
+        int n = maps.length;
         int m = maps[0].length;
-        
-        boolean[][] visited = new boolean[n][m];
+        boolean[][] visited = new boolean[n][m]; //방문여부
+        int[][] dist = new int[n][m]; // 거리
         
         Queue<int[]> q = new LinkedList<>();
-        q.add(new int[]{0,0}); //대기열 넣기
+        
+        q.add(new int[]{0,0}); //처음 위치 넣기
         visited[0][0] = true;
-        
-        int[][] dist = new int[n][m];
-        
-        dist[0][0] = 1;
+        dist[0][0] = 1; //시작점 세팅
         
         while(!q.isEmpty()){
-            int[] cur = q.poll(); //꺼내서 담기, 처음엔 0,0
-            for(int d = 0; d < 4; d++){
+            //cur를 만듦 -> poll 하고 현위치 기억하기 위해
+            int[] cur = q.poll(); //cur[0] cur[1]
+            for(int d = 0 ; d < 4 ; d ++){
                 int nr = cur[0] + dr[d];
                 int nc = cur[1] + dc[d];
                 
-                //밖이거나 방문했거나 못가는 곳이면 컨티뉴
-                if(nr < 0 || nc < 0 || nr >= n || nc >= m) continue;
-                if(visited[nr][nc]) continue;
-                if(maps[nr][nc] == 0) continue;
-                //갈 수 있으면 체크
-                visited[nr][nc] = true;
+                //인덱스 벗어났거나 방문했거나 못가는곳이면 넘기기
+                if(nr < 0 || nc < 0 || nr >= n || nc >= m || visited[nr][nc] || maps[nr][nc] == 0) continue;
+                
+                //아니면 방문 때리기
                 q.add(new int[]{nr,nc});
+                visited[nr][nc] = true;
                 dist[nr][nc] = dist[cur[0]][cur[1]] + 1;
-            }
+            }//for
         }
         
-        if (visited[n-1][m-1]) return dist[n-1][m-1];
+        if(visited[n-1][m-1]) return dist[n-1][m-1]; //만약 목표칸이 비지티드면 
         return -1;
         
-        
-    }
+
+    }//sol
 }
